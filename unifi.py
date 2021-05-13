@@ -1,9 +1,9 @@
 """
-posted in a comment in this issue: 
+posted in a comment in this issue:
     https://github.com/nickovs/unificontrol/issues/12
 """
 
-#!/usr/local/bin/python3.8
+# !/usr/local/bin/python3.8
 # -*- coding: utf-8 -*-
 import sys
 import base64
@@ -11,11 +11,22 @@ import json
 from requests import Request, Session, packages
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-username = ''
-password = ''
+import pprint
+import json
+
+
+class ActiveDevice:
+    id = ""
+    mac = ""
+    ip = ""
+    name = ""
+    portOverrides = []
+
+username = 'McCarthyATXNC'
+password = 'ATXNC9835'
 # unifi_url = 'https://ubnt.example.com'
-# unifi_url = 'https://192.168.1.1:443' # running machine on local network, e.g.
-unifi_url = 'https://127.0.0.1:443' # ssh'd into local machine, e.g. 
+unifi_url = 'https://192.168.1.1:443'  # running machine on local network, e.g.
+# unifi_url = 'https://127.0.0.1:443' # ssh'd into local machine, e.g.
 site = 'default'
 post = 'POST'
 put = 'PUT'
@@ -28,6 +39,7 @@ debug = False
 
 tracked_headers = ['X-CSRF-TOKEN', 'CONTENT-TYPE', 'CONTENT-LENGTH', 'SET-COOKIE']
 session = Session()
+
 
 def callURL(verb, path, payload, parse_response=True, return_error=True):
     global csrf_token, debug, unifi_url, session
@@ -46,12 +58,12 @@ def callURL(verb, path, payload, parse_response=True, return_error=True):
                 print("CSRF Token is None.")
             response = session.send(session.prepare_request(req), verify=False)
             headers = {'Content-Type': 'application/json'}
-            #req_cookies = session.request.cookies
+            # req_cookies = session.request.cookies
             resp_cookies = response.cookies
             resp_headers = response.headers
             req_headers = response.request.headers
             print("---")
-            #print("COOKIES --> %s" % req_cookies)
+            # print("COOKIES --> %s" % req_cookies)
             for r in req_headers:
                 if r.upper() in tracked_headers and debug:
                     print("REQ HEADER  %s=%s" % (r, req_headers[r]))
@@ -74,8 +86,8 @@ def callURL(verb, path, payload, parse_response=True, return_error=True):
                 print("COOKIE / CSRF TOKEN: %s/%s" % (cookie_token, csrf_token))
             print("Response status & reason: " + str(response.status_code) + " " + str(response.reason))
         print(response)
-        if response.status_code != 200 and response.status_code != 204 and response.status_code !=201 and return_error:
-            raise Exception("Error when requesting remote url %s [%s]:%s" % (path,  response.status_code, response.text))
+        if response.status_code != 200 and response.status_code != 204 and response.status_code != 201 and return_error:
+            raise Exception("Error when requesting remote url %s [%s]:%s" % (path, response.status_code, response.text))
 
         if parse_response:
             return response.text
@@ -85,19 +97,21 @@ def callURL(verb, path, payload, parse_response=True, return_error=True):
         raise e
         # sys.exit(2)
 
+
 def login():
     global username, password
 
     print("LOGIN")
     print("=====")
     payload = {'password': password, 'username': username}
-    #print("PAYLOAD TO SEND=%s" % payload)
-    #payload['strict'] = 'True'
+    # print("PAYLOAD TO SEND=%s" % payload)
+    # payload['strict'] = 'True'
     response = callURL('POST', '/api/auth/login', payload)
-    #print(response.content)
-    #print("-----------------------------------------")
-    #print("JSON", response.json())
+    # print(response.content)
+    # print("-----------------------------------------")
+    # print("JSON", response.json())
     print("\n")
+
 
 def logout():
     global session
@@ -106,6 +120,87 @@ def logout():
     print("======")
     response = callURL('POST', '/logout', '')
     session.cookies.clear()
+def listPortConf():
+    global action, site
+
+    login()
+
+    print("LIST Port Configurations")
+    print("============")
+    response = callURL('POST', '/proxy/network/api/s/%s/rest/portconf' % site, '')
+    #output = json.load(response)
+
+    print(response)
+    mac = None
+    blocked = None
+    name = None
+    #for device in output['data']:
+
+def simpleListDevices():
+    global action, site
+    activeSwitch = ActiveDevice()
+    login()
+
+    print("LIST Devices")
+    print("============")
+    response = callURL('POST', '/proxy/network/api/s/%s/stat/device' % site, '')
+    output = json.loads(response)
+
+    print(output)
+    return output
+
+def listDevices(searchID: str = '609d2894abb5d92a5e3b3cb6'):
+    global action, site
+    login()
+    activeSwitch = ActiveDevice()
+
+    print("LIST Devices")
+    print("============")
+    response = callURL('POST', '/proxy/network/api/s/%s/stat/device' % site, '')
+    output = json.loads(response)
+
+    print(output)
+    mac = None
+    blocked = None
+    name = None
+    for device in output['data']:
+        if "name" in device:
+            if searchID in device['_id']:
+                print("==============================")
+                if '_id' in device:
+                    activeSwitch.id = device['_id']
+                if 'port_overrides' in device:
+                    activeSwitch.portOverrides = device['port_overrides']
+                activeSwitch.name = device['name']
+                if 'mac' in device:
+                    activeSwitch.mac = device['mac']
+                if 'ip' in device:
+                    activeSwitch.ip = device['ip']
+            name = device['name']
+            print("Name: %s" % device['name'])
+        if "_id" in device:
+            id = device['_id']
+            print("ID: %s" % device['_id'])
+        if "ip" in device:
+            ip = device['ip']
+            print("IP: %s" % device['ip'])
+        if "mac" in device:
+            mac = device['mac']
+            print("MAC: %s" % device['mac'])
+        #if 'port-table'
+        if "name" in device:
+            if searchID in device['_id']:
+                print("==============================")
+    print(f"Active Switch:{activeSwitch}")
+    print(activeSwitch.name)
+    print(activeSwitch.id)
+    print(activeSwitch.ip)
+    print(activeSwitch.mac)
+    print(activeSwitch.portOverrides)
+
+    return activeSwitch
+
+
 
 def listClients():
     global action, site
@@ -121,34 +216,39 @@ def listClients():
     blocked = None
     name = None
     for client in output['data']:
-    #   if isOnBlacklist(client):
+        #   if isOnBlacklist(client):
         if True:
             if "name" in client:
                 name = client['name']
                 print("Name: %s" % client['name'])
-            print("Is On Blacklist:",isOnBlacklist(client))
+            print("Is On Blacklist:", isOnBlacklist(client))
             if "ip" in client:
                 print("IP: %s" % client['ip'])
             if "fixed_ip" in client:
-                print("Fixed IP: %s" % client['fixed_ip'])
-            if "mac" in client:
-                mac = client['mac']
+                #print("Fixed t" TODO
+                #mac = client['mac']
                 print("MAC: %s" % mac)
-            if "hostname" in client:
-                print("Host name: %s" % client['hostname'])
-            if "device_name" in client:
-                print("Device name: %s" % client['device_name'])
-            if "blocked" in client:
-                print("Checking name/mac %s/%s" % (client.get('name') or '', mac))
+                if "hostname" in client:
+                    print("Host name: %s" % client['hostname'])
+                if "device_name" in client:
+                    print("Device name: %s" % client['device_name'])
+                if "blocked" in client:
+                    print("Checking name/mac %s/%s" % (client.get('name') or '', mac))
                 blocked = client['blocked']
-                if action == 'block' and not blocked:
+                #if actioIP: % TODO
+                #    s
+                #" % client['fixed_ip'])
+                if "mac" in client == 'block' and not blocked:
                     print("Blocking client with mac %s" % mac)
-                    blockClient(mac)
-                else:
-                    print("Client with mac %s blocking status is %s" % (mac, blocked))
-    
-            print("---")
-    print("\n")
+                blockClient(mac)
+                #else:
+                #    print("nothing")
+                    # TODO
+                print("Client with mac %s blocking status is %s" % (mac, blocked))
+
+                print("---")
+                print("\n")
+
 
 def blockClient(mac):
     global site
@@ -160,6 +260,7 @@ def blockClient(mac):
     print("BLOCK RESPONSE")
     print(response)
 
+
 def unblockClient(mac):
     global site
 
@@ -168,10 +269,11 @@ def unblockClient(mac):
     response = callURL('POST', path, payload)
     print("UNBLOCK RESPONSE")
 
+
 def kickClient(mac):
     """
-    NOTE: 
-        This errors out if the client is already blocked. 
+    NOTE:
+        This errors out if the client is already blocked.
         Client must be connected and unblocked for the kick to work
     """
     global site
@@ -183,7 +285,8 @@ def kickClient(mac):
     print("KICK RESPONSE")
     print(response)
 
-def disableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e7608906a06b18185f9'):
+
+def disableSwitchPort(device_id: str, port_idx: int, portconf_id: str = '608c2e7608906a06b18185f9'):
     """
     This is the payload the client sends:
     {"port_overrides":[{"name":"eth6","port_idx":7,"portconf_id":"608c2e7608906a06b18185f9","port_security_mac_address":[],"autoneg":true}]}
@@ -193,10 +296,7 @@ def disableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e760
         ...TODO
     """
     global site
-    login()
-    path = f'/proxy/network/api/s/{site}/rest/device/{device_id}'
-    payload = {
-        "port_overrides":[
+    newOverrides = [
             {
                 # "name":"eth6",
                 "port_idx": port_idx,
@@ -205,13 +305,84 @@ def disableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e760
                 # "autoneg":True
             }
         ]
+    #print('BEFORE:========================================================')
+    #print(newOverrides)
+    Switch1 = listDevices()
+    #Switch1.portOverrides = []
+    for itemNum in range(len(Switch1.portOverrides)):
+        item = Switch1.portOverrides[itemNum]
+        #print(item['port_idx'])
+        #print(str(port_idx))
+        if item['port_idx'] != port_idx:
+
+            newOverrides.append(item)
+            #print('AFTER:========================================================')
+            #print(newOverrides)
+
+
+    login()
+    path = f'/proxy/network/api/s/{site}/rest/device/{device_id}'
+
+
+    #print("New Overrides:")
+    #print('AFTER:========================================================')
+    #print(newOverrides)
+    payload = {
+        "port_overrides": newOverrides
     }
     response = callURL('PUT', path, payload)
     print(f'DISABLED SWITCH {port_idx}')
     # print(response)
 
+def enableSwitchPort(device_id: str, port_idx: int, portconf_id: str = '608c2e7608906a06b18185f8'):
+    """
+    This is the payload the client sends:
+    {"port_overrides":[{"name":"eth6","port_idx":7,"portconf_id":"608c2e7608906a06b18185f9","port_security_mac_address":[],"autoneg":true}]}
 
-def enableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e7608906a06b18185f8'):
+    Seen:
+        608c2e7608906a06b18185f9: disable port
+        ...TODO
+    """
+    global site
+    newOverrides = [
+            {
+                # "name":"eth6",
+                "port_idx": port_idx,
+                "portconf_id": portconf_id,
+                # "port_security_mac_address":[],
+                # "autoneg":True
+            }
+        ]
+    #print('BEFORE:========================================================')
+    #print(newOverrides)
+    Switch1 = listDevices()
+    #Switch1.portOverrides = []
+    for itemNum in range(len(Switch1.portOverrides)):
+        item = Switch1.portOverrides[itemNum]
+        #print(item['port_idx'])
+        #print(str(port_idx))
+        if item['port_idx'] != port_idx:
+
+            newOverrides.append(item)
+            #print('AFTER:========================================================')
+            #print(newOverrides)
+
+
+    login()
+    path = f'/proxy/network/api/s/{site}/rest/device/{device_id}'
+
+
+    #print("New Overrides:")
+    #print('AFTER:========================================================')
+    #print(newOverrides)
+    payload = {
+        "port_overrides": newOverrides
+    }
+    response = callURL('PUT', path, payload)
+    print(f'ENABLED SWITCH {port_idx}')
+    # print(response)
+
+def oldEnableSwitchPort(device_id: str, port_idx: int, portconf_id: str = '608c2e7608906a06b18185f8'):
     """
     This is the payload the client sends:
     {"port_overrides":[{"name":"eth6","port_idx":7,"portconf_id":"608c2e7608906a06b18185f8","port_security_mac_address":[],"autoneg":true}]}
@@ -223,7 +394,7 @@ def enableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e7608
     login()
     path = f'/proxy/network/api/s/{site}/rest/device/{device_id}'
     payload = {
-        "port_overrides":[
+        "port_overrides": [
             {
                 # "name":"eth6",
                 "port_idx": port_idx,
@@ -237,7 +408,7 @@ def enableSwitchPort(device_id: str, port_idx: int, portconf_id: str='608c2e7608
     print(f'ENABLED SWITCH {port_idx}')
     # print(response)
 
-    
+
 def isOnBlacklist(client):
     match = False
     if 'hostname' in client and ("MANOLO" in client['hostname'].upper() and "IPHONE" in client['hostname'].upper()):
@@ -245,6 +416,7 @@ def isOnBlacklist(client):
     if 'name' in client and ("MANOLO" in client['name'].upper() and "IPHONE" in client['name'].upper()):
         match = True
     return match
+
 
 def noisOnBlacklist(client):
     match = False
@@ -256,20 +428,21 @@ def noisOnBlacklist(client):
         match = True
     if 'name' in client and "LUKE" in client['name'].upper():
         match = True
-    return match 
+    return match
+
 
 def usage():
     print("Usage: ./udmCheck.py [BLOCK|UNBLOCK] [MAC ADDRESS]")
     print("e.g.   ./udmCheck.py block")
     print("e.g.   ./udmCheck.py unblock aa:bb:cc:dd:ee:ff")
 
+
 #
 # MAIN PROGRAMME
 #
 def main():
     # MACS TO BLOCK:
-    BLOCK_LIST = ['aa:aa:aa:aa:aa:aa', 'aa:aa:aa:aa:bb:bb' ]
-
+    BLOCK_LIST = ['aa:aa:aa:aa:aa:aa', 'aa:aa:aa:aa:bb:bb']
 
     argv = sys.argv[1:]
     if len(argv) < 1 or len(argv) > 2:
@@ -277,17 +450,17 @@ def main():
         # sys.exit(1)
     else:
         login()
-        if len(argv) ==  1 and argv[0].upper() == 'BLOCK':
+        if len(argv) == 1 and argv[0].upper() == 'BLOCK':
             action = 'block'
             listClients()
-        elif len(argv) ==  2 and argv[0].upper() == 'UNBLOCK':
+        elif len(argv) == 2 and argv[0].upper() == 'UNBLOCK':
             action = 'unblock'
             address = argv[1].lower()
             unblockClient(address)
-        elif len(argv) ==  1 and argv[0].upper() == 'BLOCKLIST':
+        elif len(argv) == 1 and argv[0].upper() == 'BLOCKLIST':
             for addr in BLOCK_LIST:
                 blockClient(addr)
-        elif len(argv) ==  1 and argv[0].upper() == 'UNBLOCKLIST':
+        elif len(argv) == 1 and argv[0].upper() == 'UNBLOCKLIST':
             for addr in BLOCK_LIST:
                 unblockClient(addr)
     logout()
